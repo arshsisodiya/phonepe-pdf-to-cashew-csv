@@ -1,3 +1,4 @@
 *.pdf
 *.csv
 /older_versions
+/__pycache__
