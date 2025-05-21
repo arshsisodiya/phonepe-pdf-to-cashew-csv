@@ -6,6 +6,7 @@ import datetime
 import fitz  # PyMuPDF
 from collections import defaultdict, Counter
 from statistics import mean
+from cashew_csv_export import export_for_cashew
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QLabel, QMessageBox, QCheckBox, QLineEdit, QDialog, QDialogButtonBox, QHBoxLayout
@@ -191,7 +192,7 @@ class PhonePeApp(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("PhonePe PDF to CSV Converter")
-        self.setFixedSize(500, 300)
+        self.setFixedSize(500, 360)
         self.pdf_path = None
 
         layout = QVBoxLayout()
@@ -209,6 +210,10 @@ class PhonePeApp(QWidget):
         self.group_checkbox = QCheckBox("Generate grouped summary CSV")
         self.group_checkbox.setFont(QFont("Helvetica", 11))
         layout.addWidget(self.group_checkbox)
+
+        self.cashew_checkbox = QCheckBox("Import data in Cashew App")
+        self.cashew_checkbox.setFont(QFont("Helvetica", 11))
+        layout.addWidget(self.cashew_checkbox)
 
         self.convert_btn = QPushButton("Convert to CSV")
         self.convert_btn.setFont(QFont("Helvetica", 12))
@@ -255,6 +260,10 @@ class PhonePeApp(QWidget):
             if self.group_checkbox.isChecked():
                 grouped_file = self.pdf_path.replace(".pdf", "_grouped.csv")
                 write_grouped_csv(txns, grouped_file)
+
+            if self.cashew_checkbox.isChecked():
+                cashew_file = export_for_cashew(txns, os.path.dirname(self.pdf_path))
+                QMessageBox.information(self, "Cashew Export", f"Cashew App file created:\n{cashew_file}")
 
             QMessageBox.information(self, "Success", f"CSV created: {out_file}" + (f"\nGrouped CSV: {grouped_file}" if self.group_checkbox.isChecked() else ""))
         except Exception as e:
