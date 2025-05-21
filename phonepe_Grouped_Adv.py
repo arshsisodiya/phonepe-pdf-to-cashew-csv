@@ -7,7 +7,7 @@ import fitz  # PyMuPDF
 from collections import defaultdict
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
-    QLabel, QMessageBox, QCheckBox, QInputDialog
+    QLabel, QMessageBox, QCheckBox, QLineEdit, QDialog, QDialogButtonBox, QHBoxLayout
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
@@ -111,6 +111,47 @@ def write_grouped_csv(txns, output_file):
         for (kind, payee), stats in grouped.items():
             writer.writerow([kind, payee, stats["count"], f"₹{stats['amount']:.2f}"])
 
+class PasswordDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Enter PDF Password")
+        self.setFixedSize(300, 120)
+
+        layout = QVBoxLayout()
+        self.label = QLabel("PDF is password protected. Enter password:")
+        self.label.setFont(QFont("Helvetica", 10))
+        layout.addWidget(self.label)
+
+        self.input_line = QLineEdit()
+        self.input_line.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(self.input_line)
+
+        toggle_layout = QHBoxLayout()
+        self.toggle_btn = QPushButton("Show")
+        self.toggle_btn.setCheckable(True)
+        self.toggle_btn.clicked.connect(self.toggle_password)
+        toggle_layout.addWidget(self.toggle_btn)
+        toggle_layout.addStretch()
+        layout.addLayout(toggle_layout)
+
+        self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        layout.addWidget(self.buttons)
+
+        self.setLayout(layout)
+
+    def toggle_password(self):
+        if self.toggle_btn.isChecked():
+            self.input_line.setEchoMode(QLineEdit.EchoMode.Normal)
+            self.toggle_btn.setText("Hide")
+        else:
+            self.input_line.setEchoMode(QLineEdit.EchoMode.Password)
+            self.toggle_btn.setText("Show")
+
+    def get_password(self):
+        return self.input_line.text()
+
 class PhonePeApp(QWidget):
     def __init__(self):
         super().__init__()
@@ -162,10 +203,12 @@ class PhonePeApp(QWidget):
             try:
                 text = extract_text_from_pdf(self.pdf_path)
             except RuntimeError:
-                password, ok = QInputDialog.getText(self, "Password Protected", "Enter PDF Password:")
-                if not ok:
+                dlg = PasswordDialog()
+                if dlg.exec() == QDialog.DialogCode.Accepted:
+                    password = dlg.get_password()
+                    text = extract_text_from_pdf(self.pdf_path, password)
+                else:
                     return
-                text = extract_text_from_pdf(self.pdf_path, password)
 
             txns = parse_transactions(text)
             if not txns:
