@@ -7,7 +7,7 @@ import fitz  # PyMuPDF
 from collections import defaultdict
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
-    QLabel, QMessageBox, QCheckBox
+    QLabel, QMessageBox, QCheckBox, QInputDialog
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
@@ -28,12 +28,18 @@ class PhonePeTxn:
     def to_row(self):
         return [self.date, self.time, self.payee, self.txn_id, self.utr_no, self.payer, self.kind, self.amount]
 
-def extract_text_from_pdf(pdf_path):
-    text = ""
-    with fitz.open(pdf_path) as doc:
-        for page in doc:
-            text += page.get_text()
-    return text
+def extract_text_from_pdf(pdf_path, password=None):
+    try:
+        with fitz.open(pdf_path) as doc:
+            if doc.needs_pass:
+                if not password or not doc.authenticate(password):
+                    raise RuntimeError("Password required or incorrect password.")
+            text = ""
+            for page in doc:
+                text += page.get_text()
+            return text
+    except Exception as e:
+        raise e
 
 def parse_transactions(text):
     lines = text.strip().split('\n')
@@ -152,7 +158,15 @@ class PhonePeApp(QWidget):
             return
 
         try:
-            text = extract_text_from_pdf(self.pdf_path)
+            password = None
+            try:
+                text = extract_text_from_pdf(self.pdf_path)
+            except RuntimeError:
+                password, ok = QInputDialog.getText(self, "Password Protected", "Enter PDF Password:")
+                if not ok:
+                    return
+                text = extract_text_from_pdf(self.pdf_path, password)
+
             txns = parse_transactions(text)
             if not txns:
                 raise ValueError("No transactions found.")
