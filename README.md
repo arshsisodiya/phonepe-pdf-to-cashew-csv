@@ -1,4 +1,4 @@
-# PhonePe PDF To Vashew CSV Exporter
+# PhonePe PDF To Cashew CSV Exporter
 
 **Description:**
 A modern desktop app built with PyQt6 that allows you to convert your PhonePe transaction statement PDF into structured CSV files. It supports exporting data in formats compatible with budgeting apps like **Cashew**, providing flexibility, financial insights, and automation.
