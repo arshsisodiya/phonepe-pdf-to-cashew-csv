@@ -4,7 +4,8 @@ import re
 import csv
 import datetime
 import fitz  # PyMuPDF
-from collections import defaultdict
+from collections import defaultdict, Counter
+from statistics import mean
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QLabel, QMessageBox, QCheckBox, QLineEdit, QDialog, QDialogButtonBox, QHBoxLayout
@@ -99,17 +100,51 @@ def write_csv(txns, output_file):
 
 def write_grouped_csv(txns, output_file):
     grouped = defaultdict(lambda: {"count": 0, "amount": 0.0})
+    debit_amounts = defaultdict(float)
+    credit_amounts = defaultdict(float)
+    daily_spending = defaultdict(float)
+    weekly_spending = defaultdict(float)
+    monthly_spending = defaultdict(float)
 
     for txn in txns:
+        amt = float(txn.amount.replace("₹", ""))
         key = (txn.kind, txn.payee)
         grouped[key]["count"] += 1
-        grouped[key]["amount"] += float(txn.amount.replace("\u20B9", ""))
+        grouped[key]["amount"] += amt
+
+        if txn.kind == "DEBIT":
+            debit_amounts[txn.payee] += amt
+            daily_spending[txn.date] += amt
+            week = datetime.datetime.strptime(txn.date, "%Y-%m-%d").isocalendar().week
+            week_key = f"{txn.date[:4]}-W{week}"
+            weekly_spending[week_key] += amt
+            month_key = txn.date[:7]  # yyyy-mm
+            monthly_spending[month_key] += amt
+        elif txn.kind == "CREDIT":
+            credit_amounts[txn.payee] += amt
+
+    most_spent_to = max(debit_amounts.items(), key=lambda x: x[1], default=("None", 0))
+    most_received_from = max(credit_amounts.items(), key=lambda x: x[1], default=("None", 0))
+    most_spent_day = max(daily_spending.items(), key=lambda x: x[1], default=("None", 0))
+
+    avg_day = mean(daily_spending.values()) if daily_spending else 0
+    avg_week = mean(weekly_spending.values()) if weekly_spending else 0
+    avg_month = mean(monthly_spending.values()) if monthly_spending else 0
 
     with open(output_file, 'w', newline='', encoding='utf-8') as fo:
         writer = csv.writer(fo)
-        writer.writerow(["Type", "Payee", "Count", "Total Amount (\u20B9)"])
+        writer.writerow(["Type", "Payee", "Count", "Total Amount (₹)"])
         for (kind, payee), stats in grouped.items():
             writer.writerow([kind, payee, stats["count"], f"₹{stats['amount']:.2f}"])
+
+        writer.writerow([])
+        writer.writerow(["Summary"])
+        writer.writerow(["Most Amount Sent To", most_spent_to[0], f"₹{most_spent_to[1]:.2f}"])
+        writer.writerow(["Most Amount Received From", most_received_from[0], f"₹{most_received_from[1]:.2f}"])
+        writer.writerow(["Most Spent Day", most_spent_day[0], f"₹{most_spent_day[1]:.2f}"])
+        writer.writerow(["Average Daily Spend", f"₹{avg_day:.2f}"])
+        writer.writerow(["Average Weekly Spend", f"₹{avg_week:.2f}"])
+        writer.writerow(["Average Monthly Spend", f"₹{avg_month:.2f}"])
 
 class PasswordDialog(QDialog):
     def __init__(self):
