@@ -234,6 +234,36 @@ class PasswordDialog(QDialog):
     def get_password(self):
         return self.input_line.text()
 
+class CategoryInputDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Enter Payee - Category mappings")
+        self.setFixedSize(400, 150)
+
+        layout = QVBoxLayout()
+        label = QLabel("Enter payee-category mappings (format: Payee - Category, ...):")
+        layout.addWidget(label)
+
+        self.input_line = QLineEdit()
+        self.input_line.setPlaceholderText("Example: Amazon - Shopping, Flipkart - Shopping, Salary - Income")
+        layout.addWidget(self.input_line)
+
+        self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        layout.addWidget(self.buttons)
+
+        self.setLayout(layout)
+
+    def get_mappings(self):
+        text = self.input_line.text()
+        mappings = {}
+        for pair in text.split(","):
+            if "-" in pair:
+                payee, category = pair.split("-", 1)
+                mappings[payee.strip()] = category.strip()
+        return mappings
+
 class PhonePeApp(QWidget):
     def __init__(self):
         super().__init__()
@@ -309,8 +339,18 @@ class PhonePeApp(QWidget):
                 write_grouped_csv(txns, grouped_file)
 
             if self.cashew_checkbox.isChecked():
-                cashew_file = export_for_cashew(txns,
-                                                os.path.join(os.path.dirname(os.path.abspath(__file__)), "output"))
+                # Show category input dialog
+                cat_dlg = CategoryInputDialog()
+                if cat_dlg.exec() == QDialog.DialogCode.Accepted:
+                    mappings = cat_dlg.get_mappings()
+                else:
+                    mappings = {}
+
+                cashew_file = export_for_cashew(
+                    txns,
+                    os.path.join(os.path.dirname(os.path.abspath(__file__)), "output"),
+                    payee_category_map=mappings
+                )
                 QMessageBox.information(self, "Cashew Export", f"Cashew App file created:\n{cashew_file}")
 
             msg = f"CSV created: {out_file}"
