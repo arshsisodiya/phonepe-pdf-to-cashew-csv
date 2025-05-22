@@ -27,6 +27,7 @@ class PhonePeTxn:
         self.kind = kind
         self.amount = amount
 
+
     def to_row(self):
         return [self.date, self.time, self.payee, self.txn_id, self.utr_no, self.payer, self.kind, self.amount]
 
@@ -52,7 +53,7 @@ def parse_transactions(text):
     for l in lines:
         if START_OF_RECORD_MARKER.match(l):
             if rec:
-                txn = mk_record(rec)
+                txn = try_all_parsers(rec)
                 if txn:
                     txns.append(txn)
             rec = [l]
@@ -60,17 +61,26 @@ def parse_transactions(text):
             rec.append(l)
 
     if rec:
-        txn = mk_record(rec)
+        txn = try_all_parsers(rec)
         if txn:
             txns.append(txn)
 
     return txns
 
-def mk_record(r):
+def try_all_parsers(rec):
+    for parser in [mk_record_v1, mk_record_v2]:
+        txn = parser(rec)
+        if txn:
+            return txn
+    return None
+
+def mk_record_v1(r):
     try:
         if len(r) < 8:
             return None
-
+        # Check if r[2] is a known kind and r[3] starts with ₹ or is numeric
+        if not r[3].lstrip().startswith("₹") and not r[3].replace(",", "").strip().replace(".", "").isdigit():
+            return None
         dt = datetime.datetime.strptime(r[0] + " " + r[1], "%b %d, %Y %I:%M %p")
         kind = r[2].strip()
         amount_str = "₹" + r[3].replace("₹", "").replace(",", "").strip()
@@ -78,6 +88,36 @@ def mk_record(r):
         txn_id = r[5].split()[-1] if len(r) > 5 else ""
         utr_no = "\t" + r[6].split()[-1] if len(r) > 6 else ""
         payer = r[8] if len(r) > 8 else ""
+        return PhonePeTxn(
+            date=dt.strftime("%Y-%m-%d"),
+            time=dt.strftime("%I:%M %p"),
+            payee=payee,
+            txn_id=txn_id,
+            utr_no=utr_no,
+            payer=payer,
+            kind=kind,
+            amount=amount_str
+        )
+    except Exception:
+        return None
+
+def mk_record_v2(r):
+    try:
+        if len(r) < 8:
+            return None
+        if not any(keyword in r[2] for keyword in ["Paid to", "Received from", "Refund", "Payment to"]):
+            return None
+
+        dt = datetime.datetime.strptime(r[0] + " " + r[1], "%b %d, %Y %I:%M %p")
+        payee = r[2].strip()
+        txn_id = r[3].split()[-1]
+        utr_no = "\t" + r[4].split()[-1]
+        payer = r[5].strip()
+        kind = r[6].strip()
+        amount_line = r[8].strip() if len(r) > 8 and r[7].strip().endswith("INR") else r[7].strip()
+        match = re.search(r'[\d,]+(?:\.\d+)?', amount_line)
+        amount_val = float(match.group().replace(',', '')) if match else 0.0
+        amount_str = f"₹{amount_val:.2f}"
 
         return PhonePeTxn(
             date=dt.strftime("%Y-%m-%d"),
