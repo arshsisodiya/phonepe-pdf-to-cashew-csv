@@ -30,6 +30,12 @@ class PhonePeTxn:
 
     def to_row(self):
         return [self.date, self.time, self.payee, self.txn_id, self.utr_no, self.payer, self.kind, self.amount]
+def get_output_path(pdf_path, suffix=".csv"):
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(app_dir, "output")
+    os.makedirs(output_dir, exist_ok=True)
+    base_name = os.path.basename(pdf_path).replace(".pdf", suffix)
+    return os.path.join(output_dir, base_name)
 
 def extract_text_from_pdf(pdf_path, password=None):
     try:
@@ -294,20 +300,28 @@ class PhonePeApp(QWidget):
             if not txns:
                 raise ValueError("No transactions found.")
 
-            out_file = self.pdf_path.replace(".pdf", ".csv")
+            out_file = get_output_path(self.pdf_path, ".csv")
             write_csv(txns, out_file)
 
+            grouped_file = None
             if self.group_checkbox.isChecked():
-                grouped_file = self.pdf_path.replace(".pdf", "_grouped.csv")
+                grouped_file = get_output_path(self.pdf_path, "_grouped.csv")
                 write_grouped_csv(txns, grouped_file)
 
             if self.cashew_checkbox.isChecked():
-                cashew_file = export_for_cashew(txns, os.path.dirname(self.pdf_path))
+                cashew_file = export_for_cashew(txns,
+                                                os.path.join(os.path.dirname(os.path.abspath(__file__)), "output"))
                 QMessageBox.information(self, "Cashew Export", f"Cashew App file created:\n{cashew_file}")
 
-            QMessageBox.information(self, "Success", f"CSV created: {out_file}" + (f"\nGrouped CSV: {grouped_file}" if self.group_checkbox.isChecked() else ""))
+            msg = f"CSV created: {out_file}"
+            if grouped_file:
+                msg += f"\nGrouped CSV: {grouped_file}"
+
+            QMessageBox.information(self, "Success", msg)
+
         except Exception as e:
             QMessageBox.critical(self, "Failed", str(e))
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
