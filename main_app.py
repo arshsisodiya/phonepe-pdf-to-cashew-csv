@@ -7,6 +7,7 @@ import fitz  # PyMuPDF
 from collections import defaultdict, Counter
 from statistics import mean
 from cashew_csv_export import export_for_cashew
+from TransactionViewer import TransactionViewer
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QLabel, QMessageBox, QCheckBox, QLineEdit, QDialog, QDialogButtonBox, QHBoxLayout
@@ -180,7 +181,7 @@ def write_grouped_csv(txns, output_file):
 
     with open(output_file, 'w', newline='', encoding='utf-8') as fo:
         writer = csv.writer(fo)
-        writer.writerow(["Type", "Payee", "Count", "Total Amount (₹)"])
+        writer.writerow(["Type", "Payee", "Count", "Total Amount"])
         for (kind, payee), stats in grouped.items():
             writer.writerow([kind, payee, stats["count"], f"₹{stats['amount']:.2f}"])
 
@@ -270,6 +271,7 @@ class PhonePeApp(QWidget):
         self.setWindowTitle("PhonePe PDF to CSV Converter")
         self.setFixedSize(500, 360)
         self.pdf_path = None
+        self.viewer_window = None  # Keep reference to the viewer window
 
         layout = QVBoxLayout()
 
@@ -310,6 +312,8 @@ class PhonePeApp(QWidget):
             self.status_label.setText(f"Selected: {os.path.basename(path)}")
 
     def convert_to_csv(self):
+        cashew_file = None
+        grouped_file = None
         if not self.pdf_path:
             QMessageBox.critical(self, "Error", "Please select a PDF file first.")
             return
@@ -333,7 +337,6 @@ class PhonePeApp(QWidget):
             out_file = get_output_path(self.pdf_path, ".csv")
             write_csv(txns, out_file)
 
-            grouped_file = None
             if self.group_checkbox.isChecked():
                 grouped_file = get_output_path(self.pdf_path, "_grouped.csv")
                 write_grouped_csv(txns, grouped_file)
@@ -358,6 +361,14 @@ class PhonePeApp(QWidget):
                 msg += f"\nGrouped CSV: {grouped_file}"
 
             QMessageBox.information(self, "Success", msg)
+
+            # Open the transaction viewer window to show CSVs
+            self.viewer_window = TransactionViewer(
+                all_path=out_file,
+                grouped_path=grouped_file,
+                cashew_path=cashew_file
+            )
+            self.viewer_window.show()
 
         except Exception as e:
             QMessageBox.critical(self, "Failed", str(e))
